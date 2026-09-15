@@ -16,6 +16,7 @@ import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -55,7 +56,9 @@ public class ChamadoService {
     ) {
         UsuarioModel usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Usuário não encontrado.")
+                        new IllegalArgumentException(
+                                "Usuário não encontrado."
+                        )
                 );
 
         if (!usuario.isEmailConfirmado()) {
@@ -67,6 +70,7 @@ public class ChamadoService {
         if (dto.caminhoAnexo() != null
                 && !dto.caminhoAnexo().isBlank()
                 && !validarAnexo(dto.caminhoAnexo())) {
+
             throw new IllegalArgumentException(
                     "Extensão de anexo inválida. Formatos permitidos: .pdf, .svg, .png e .jpg."
             );
@@ -80,7 +84,6 @@ public class ChamadoService {
         chamado.setCaminhoAnexo(dto.caminhoAnexo());
         chamado.setUsuarioAbertura(usuario);
 
-        // Todo chamado novo começa aberto e no nível N1.
         chamado.setStatus(StatusChamado.ABERTO);
         chamado.setNivelAtendimento(Perfil.ATENDENTE_N1);
 
@@ -92,7 +95,8 @@ public class ChamadoService {
     @Transactional
     public ChamadoResponseDTO salvarAnexo(
             Long chamadoId,
-            MultipartFile file
+            MultipartFile file,
+            String emailUsuario
     ) {
         ChamadoModel chamado = chamadoRepository.findById(chamadoId)
                 .orElseThrow(() ->
@@ -101,9 +105,29 @@ public class ChamadoService {
                         )
                 );
 
+        if (chamado.getUsuarioAbertura() == null
+                || !chamado.getUsuarioAbertura()
+                .getEmail()
+                .equals(emailUsuario)) {
+
+            throw new AccessDeniedException(
+                    "Você só pode anexar arquivos aos seus próprios chamados."
+            );
+        }
+
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException(
                     "O arquivo enviado não pode estar vazio."
+            );
+        }
+
+        String nomeOriginal = file.getOriginalFilename();
+
+        if (nomeOriginal == null
+                || !validarAnexo(nomeOriginal)) {
+
+            throw new IllegalArgumentException(
+                    "Extensão de anexo inválida. Formatos permitidos: .pdf, .svg, .png e .jpg."
             );
         }
 
@@ -114,16 +138,12 @@ public class ChamadoService {
                 Files.createDirectories(diretorio);
             }
 
-            String nomeOriginal = file.getOriginalFilename();
-            String extensao = "";
-
-            if (nomeOriginal != null && nomeOriginal.contains(".")) {
-                extensao = nomeOriginal.substring(
-                        nomeOriginal.lastIndexOf(".")
-                );
-            }
+            String extensao = nomeOriginal.substring(
+                    nomeOriginal.lastIndexOf(".")
+            );
 
             String nomeArquivo = UUID.randomUUID() + extensao;
+
             Path caminhoCompleto = diretorio.resolve(nomeArquivo);
 
             Files.copy(
@@ -132,9 +152,12 @@ public class ChamadoService {
                     StandardCopyOption.REPLACE_EXISTING
             );
 
-            chamado.setCaminhoAnexo(caminhoCompleto.toString());
+            chamado.setCaminhoAnexo(
+                    caminhoCompleto.toString()
+            );
 
-            ChamadoModel atualizado = chamadoRepository.save(chamado);
+            ChamadoModel atualizado =
+                    chamadoRepository.save(chamado);
 
             return toDTO(atualizado);
 
@@ -156,34 +179,48 @@ public class ChamadoService {
 
         if (chamado.getCaminhoAnexo() == null
                 || chamado.getCaminhoAnexo().isBlank()) {
+
             return ResponseEntity.notFound().build();
         }
 
         try {
-            Path caminho = Paths.get(chamado.getCaminhoAnexo());
-            Resource resource = new UrlResource(caminho.toUri());
+            Path caminho = Paths.get(
+                    chamado.getCaminhoAnexo()
+            );
 
-            if (!resource.exists() || !resource.isReadable()) {
+            Resource resource =
+                    new UrlResource(caminho.toUri());
+
+            if (!resource.exists()
+                    || !resource.isReadable()) {
+
                 return ResponseEntity.notFound().build();
             }
 
-            String contentType = Files.probeContentType(caminho);
+            String contentType =
+                    Files.probeContentType(caminho);
 
             if (contentType == null) {
-                contentType = "application/octet-stream";
+                contentType =
+                        "application/octet-stream";
             }
 
             return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
+                    .contentType(
+                            MediaType.parseMediaType(contentType)
+                    )
                     .header(
                             HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename=\"" + resource.getFilename() + "\""
+                            "inline; filename=\"" +
+                                    resource.getFilename() +
+                                    "\""
                     )
                     .body(resource);
 
         } catch (IOException e) {
             throw new RuntimeException(
-                    "Erro ao carregar anexo: " + e.getMessage()
+                    "Erro ao carregar anexo: " +
+                            e.getMessage()
             );
         }
     }
@@ -207,7 +244,9 @@ public class ChamadoService {
 
         chamado.setNivelAtendimento(novoNivel);
 
-        return toDTO(chamadoRepository.save(chamado));
+        return toDTO(
+                chamadoRepository.save(chamado)
+        );
     }
 
     @Transactional
@@ -224,15 +263,18 @@ public class ChamadoService {
                         )
                 );
 
-        UsuarioModel atendente = usuarioRepository.findById(atendenteId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Atendente não encontrado."
-                        )
-                );
+        UsuarioModel atendente =
+                usuarioRepository.findById(atendenteId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "Atendente não encontrado."
+                                )
+                        );
 
         if (atendente.getPerfil() == Perfil.USUARIO_COMUM
-                || atendente.getPerfil() == Perfil.SETOR_ADMINISTRATIVO) {
+                || atendente.getPerfil()
+                == Perfil.SETOR_ADMINISTRATIVO) {
+
             throw new IllegalArgumentException(
                     "Apenas atendentes técnicos podem assumir chamados."
             );
@@ -242,11 +284,16 @@ public class ChamadoService {
         chamado.setStatus(novoStatus);
 
         if (novoStatus == StatusChamado.FECHADO) {
-            chamado.setDataFinalizacao(LocalDateTime.now());
+            chamado.setDataFinalizacao(
+                    LocalDateTime.now()
+            );
+
             chamado.setSolucao(solucao);
         }
 
-        return toDTO(chamadoRepository.save(chamado));
+        return toDTO(
+                chamadoRepository.save(chamado)
+        );
     }
 
     @Transactional(readOnly = true)
@@ -256,7 +303,11 @@ public class ChamadoService {
             Urgencia urgencia
     ) {
         return chamadoRepository
-                .buscarComFiltros(status, nivel, urgencia)
+                .buscarComFiltros(
+                        status,
+                        nivel,
+                        urgencia
+                )
                 .stream()
                 .map(this::toDTO)
                 .toList();
@@ -272,21 +323,33 @@ public class ChamadoService {
 
     @Transactional(readOnly = true)
     public DashboardDTO obterMetricsDashboard() {
-        LocalDateTime agora = LocalDateTime.now();
+        LocalDateTime agora =
+                LocalDateTime.now();
 
-        long atrasados = chamadoRepository.countAtrasados(agora);
-        long resolvidos = chamadoRepository.countByStatus(
-                StatusChamado.FECHADO
-        );
-        long abertos = chamadoRepository.countAbertosNaoAtrasados(agora);
+        long atrasados =
+                chamadoRepository.countAtrasados(agora);
 
-        LocalDateTime inicioDia = LocalDate.now().atStartOfDay();
-        LocalDateTime fimDia = LocalDate.now().atTime(LocalTime.MAX);
+        long resolvidos =
+                chamadoRepository.countByStatus(
+                        StatusChamado.FECHADO
+                );
 
-        long hoje = chamadoRepository.countByDataCriacaoBetween(
-                inicioDia,
-                fimDia
-        );
+        long abertos =
+                chamadoRepository.countAbertosNaoAtrasados(
+                        agora
+                );
+
+        LocalDateTime inicioDia =
+                LocalDate.now().atStartOfDay();
+
+        LocalDateTime fimDia =
+                LocalDate.now().atTime(LocalTime.MAX);
+
+        long hoje =
+                chamadoRepository.countByDataCriacaoBetween(
+                        inicioDia,
+                        fimDia
+                );
 
         return new DashboardDTO(
                 abertos,
@@ -304,6 +367,7 @@ public class ChamadoService {
                 || (novo != Perfil.ATENDENTE_N1
                 && novo != Perfil.ATENDENTE_N2
                 && novo != Perfil.ATENDENTE_N3)) {
+
             throw new IllegalArgumentException(
                     "O nível de destino deve ser ATENDENTE_N1, ATENDENTE_N2 ou ATENDENTE_N3."
             );
@@ -318,6 +382,7 @@ public class ChamadoService {
         if (atual == Perfil.ATENDENTE_N1
                 && novo != Perfil.ATENDENTE_N2
                 && novo != Perfil.ATENDENTE_N3) {
+
             throw new IllegalArgumentException(
                     "N1 só pode transferir para N2 ou N3."
             );
@@ -325,6 +390,7 @@ public class ChamadoService {
 
         if (atual == Perfil.ATENDENTE_N2
                 && novo != Perfil.ATENDENTE_N3) {
+
             throw new IllegalArgumentException(
                     "N2 só pode transferir para N3."
             );
@@ -340,7 +406,9 @@ public class ChamadoService {
                 || lower.endsWith(".jpg");
     }
 
-    private ChamadoResponseDTO toDTO(ChamadoModel model) {
+    private ChamadoResponseDTO toDTO(
+            ChamadoModel model
+    ) {
         StatusChamado statusExibicao =
                 model.isAtrasado()
                         ? StatusChamado.ATRASADO

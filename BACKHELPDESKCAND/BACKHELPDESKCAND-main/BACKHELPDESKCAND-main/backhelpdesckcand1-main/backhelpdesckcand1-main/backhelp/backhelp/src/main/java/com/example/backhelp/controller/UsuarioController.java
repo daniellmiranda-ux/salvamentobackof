@@ -24,12 +24,17 @@ public class UsuarioController {
     }
 
     @PostMapping({"", "/cadastrar"})
-    public ResponseEntity<UsuarioResponseDTO> cadastrar(@Valid @RequestBody UsuarioRequestDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.cadastrar(dto));
+    @PreAuthorize("hasAnyAuthority('SETOR_ADMINISTRATIVO', 'ROLE_SETOR_ADMINISTRATIVO')")
+    public ResponseEntity<UsuarioResponseDTO> cadastrar(
+            @Valid @RequestBody UsuarioRequestDTO dto) {
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(usuarioService.cadastrar(dto));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenResponseDTO> login(@Valid @RequestBody LoginRequestDTO dto) {
+    public ResponseEntity<TokenResponseDTO> login(
+            @Valid @RequestBody LoginRequestDTO dto) {
         return ResponseEntity.ok(usuarioService.login(dto));
     }
 
@@ -42,7 +47,8 @@ public class UsuarioController {
     }
 
     @GetMapping("/confirmar-email")
-    public ResponseEntity<UsuarioResponseDTO> confirmarEmail(@RequestParam Long id) {
+    public ResponseEntity<UsuarioResponseDTO> confirmarEmail(
+            @RequestParam Long id) {
         return ResponseEntity.ok(usuarioService.confirmarEmail(id));
     }
 

@@ -39,6 +39,12 @@ public class UsuarioService {
             );
         }
 
+        if (!isEmailCorporativo(dto.email())) {
+            throw new IllegalArgumentException(
+                    "O e-mail deve pertencer ao domínio @helpdeskcand.com."
+            );
+        }
+
         if (dto.senha() == null || dto.senha().isBlank()) {
             throw new IllegalArgumentException(
                     "A senha é obrigatória."
@@ -65,7 +71,6 @@ public class UsuarioService {
         usuario.setCargo(dto.cargo());
         usuario.setPerfil(dto.perfil());
 
-
         usuario.setEmailConfirmado(true);
 
         UsuarioModel salvo = usuarioRepository.save(usuario);
@@ -86,6 +91,13 @@ public class UsuarioService {
                 );
 
         if (dto.email() != null && !dto.email().isBlank()) {
+
+            if (!isEmailCorporativo(dto.email())) {
+                throw new IllegalArgumentException(
+                        "O e-mail deve pertencer ao domínio @helpdeskcand.com."
+                );
+            }
+
             if (!usuario.getEmail().equals(dto.email())
                     && usuarioRepository.existsByEmail(dto.email())) {
                 throw new IllegalArgumentException(
@@ -115,6 +127,14 @@ public class UsuarioService {
 
     @Transactional(readOnly = true)
     public TokenResponseDTO login(LoginRequestDTO dto) {
+
+        if (dto.email() == null
+                || !isEmailCorporativo(dto.email())) {
+            throw new BadCredentialsException(
+                    "E-mail ou senha inválidos."
+            );
+        }
+
         UsuarioModel usuario = usuarioRepository.findByEmail(dto.email())
                 .orElseThrow(() ->
                         new BadCredentialsException(
@@ -160,6 +180,12 @@ public class UsuarioService {
                 .stream()
                 .map(this::toDTO)
                 .toList();
+    }
+
+    private boolean isEmailCorporativo(String email) {
+        return email.matches(
+                "^[a-zA-Z0-9._%+-]+@helpdeskcand\\.com$"
+        );
     }
 
     private UsuarioResponseDTO toDTO(UsuarioModel model) {

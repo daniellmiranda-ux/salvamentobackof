@@ -30,20 +30,44 @@ public class ChamadoController {
     }
 
     @PostMapping
-    public ResponseEntity<ChamadoResponseDTO> criarChamado(@Valid @RequestBody ChamadoRequestDTO dto) {
-        String emailUsuario = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.status(HttpStatus.CREATED).body(chamadoService.criarChamado(dto, emailUsuario));
+    public ResponseEntity<ChamadoResponseDTO> criarChamado(
+            @Valid @RequestBody ChamadoRequestDTO dto) {
+
+        String emailUsuario = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(chamadoService.criarChamado(dto, emailUsuario));
     }
 
-    @PostMapping(value = "/{id}/anexo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(
+            value = "/{id}/anexo",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    @PreAuthorize("hasRole('USUARIO_COMUM')")
     public ResponseEntity<ChamadoResponseDTO> uploadAnexo(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(chamadoService.salvarAnexo(id, file));
+
+        String emailUsuario = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return ResponseEntity.ok(
+                chamadoService.salvarAnexo(
+                        id,
+                        file,
+                        emailUsuario
+                )
+        );
     }
 
     @GetMapping("/{id}/anexo")
-    public ResponseEntity<Resource> buscarAnexo(@PathVariable Long id) {
+    public ResponseEntity<Resource> buscarAnexo(
+            @PathVariable Long id) {
+
         return chamadoService.carregarAnexo(id);
     }
 
@@ -52,7 +76,14 @@ public class ChamadoController {
             @RequestParam(required = false) StatusChamado status,
             @RequestParam(required = false) Perfil nivelAtendimento,
             @RequestParam(required = false) Urgencia urgencia) {
-        return ResponseEntity.ok(chamadoService.listarComFiltros(status, nivelAtendimento, urgencia));
+
+        return ResponseEntity.ok(
+                chamadoService.listarComFiltros(
+                        status,
+                        nivelAtendimento,
+                        urgencia
+                )
+        );
     }
 
     @PutMapping("/{id}/escalonar")
@@ -60,7 +91,13 @@ public class ChamadoController {
     public ResponseEntity<ChamadoResponseDTO> escalonarChamado(
             @PathVariable Long id,
             @RequestParam Perfil novoNivel) {
-        return ResponseEntity.ok(chamadoService.escalonarChamado(id, novoNivel));
+
+        return ResponseEntity.ok(
+                chamadoService.escalonarChamado(
+                        id,
+                        novoNivel
+                )
+        );
     }
 
     @PutMapping("/{id}/atender")
@@ -70,12 +107,23 @@ public class ChamadoController {
             @RequestParam Long atendenteId,
             @RequestParam StatusChamado status,
             @RequestBody(required = false) String solucao) {
-        return ResponseEntity.ok(chamadoService.atenderEConverter(id, atendenteId, status, solucao));
+
+        return ResponseEntity.ok(
+                chamadoService.atenderEConverter(
+                        id,
+                        atendenteId,
+                        status,
+                        solucao
+                )
+        );
     }
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('ATENDENTE_N1', 'ATENDENTE_N2', 'ATENDENTE_N3', 'SETOR_ADMINISTRATIVO')")
+    @PreAuthorize("hasAnyRole('ATENDENTE_N1', 'ATENDENTE_N2', 'ATENDENTE_N3')")
     public ResponseEntity<DashboardDTO> obterDashboard() {
-        return ResponseEntity.ok(chamadoService.obterMetricsDashboard());
+
+        return ResponseEntity.ok(
+                chamadoService.obterMetricsDashboard()
+        );
     }
 }
